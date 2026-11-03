@@ -89,12 +89,14 @@
       margin: 8px 0;
     }
   </style>
+
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#111111">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Laser Tracker">
+
 </head>
 
 <body>
@@ -151,43 +153,51 @@ function saveState() {
 }
 
 function loadState() {
+
   const saved = localStorage.getItem("laserTrackerData");
 
   if (!saved) return;
 
   const data = JSON.parse(saved);
 
-  /*
-    New save format.
-  */
   if (Array.isArray(data.nests)) {
+
     nests = data.nests || [];
+
     currentNestIndex = data.currentNestIndex || 0;
 
     if (currentNestIndex >= nests.length) {
       currentNestIndex = 0;
     }
 
+    // Add starting pattern to existing nests.
+    nests.forEach(nest => {
+      if (!nest.startingPattern) {
+        nest.startingPattern = 1;
+      }
+    });
+
+    saveState();
+
     return;
   }
 
-  /*
-    Old save format migration.
-    This keeps your old single nest data and converts it into one nest.
-  */
+  // Migrate old single-nest data.
+
   if (Array.isArray(data.patterns) && Array.isArray(data.parts)) {
-    nests = [
-      {
-        label: "Nest 1",
-        patterns: data.patterns || [],
-        parts: data.parts || [],
-        currentPattern: data.currentPattern || 0,
-        endingPattern: data.endingPattern || data.patterns.length || 1,
-        totalSort: data.totalSort || "parts"
-      }
-    ];
+
+    nests = [{
+      label: "Nest 1",
+      patterns: data.patterns || [],
+      parts: data.parts || [],
+      currentPattern: data.currentPattern || 0,
+      startingPattern: 1,
+      endingPattern: data.endingPattern || data.patterns.length || 1,
+      totalSort: data.totalSort || "parts"
+    }];
 
     currentNestIndex = 0;
+
     saveState();
   }
 }
@@ -195,6 +205,7 @@ function loadState() {
 /* ================= RESET ================= */
 
 function reset() {
+
   if (!confirm("Reset all data?")) return;
 
   localStorage.removeItem("laserTrackerData");
@@ -220,6 +231,7 @@ function reset() {
 /* ================= SETUP ================= */
 
 function startAddNest() {
+
   addingNest = true;
   step = 1;
 
@@ -236,6 +248,7 @@ function startAddNest() {
 }
 
 function cancelAddNest() {
+
   addingNest = false;
   step = 1;
 
@@ -258,6 +271,7 @@ function cancelAddNest() {
 }
 
 function renderSetup() {
+
   const el = document.getElementById("setup");
 
   el.style.display = "block";
@@ -265,6 +279,7 @@ function renderSetup() {
   const title = nests.length === 0 ? "Setup First Nest" : "Add Nest";
 
   if (step === 1) {
+
     el.innerHTML = `
       <div class="card">
 
@@ -292,6 +307,7 @@ function renderSetup() {
   }
 
   if (step === 2) {
+
     let html = `
       <div class="card">
 
@@ -301,6 +317,7 @@ function renderSetup() {
     `;
 
     setupDraft.parts.forEach((p, i) => {
+
       html += `
         <div class="row">
 
@@ -334,12 +351,17 @@ function renderSetup() {
 }
 
 function goStep2() {
+
   const label = document.getElementById("nestLabel").value.trim();
   const patternCount = document.getElementById("patternCount").value;
   const partCount = document.getElementById("partCount").value;
 
-  if (!patternCount || !partCount) {
-    alert("Pattern count and part count are required");
+  if (!patternCount || !partCount ||
+      parseInt(patternCount) < 1 ||
+      parseInt(partCount) < 1) {
+
+    alert("Enter valid pattern and part counts");
+
     return;
   }
 
@@ -360,11 +382,14 @@ function goStep2() {
 }
 
 function goBackStep1() {
+
   step = 1;
+
   renderSetup();
 }
 
 function addMoreSetupParts() {
+
   setupDraft.parts.push({
     number: ""
   });
@@ -373,16 +398,20 @@ function addMoreSetupParts() {
 }
 
 function updateSetupPart(i, val) {
+
   setupDraft.parts[i].number = val;
 }
 
 function createNest() {
+
   const cleanParts = setupDraft.parts.map((p, i) => ({
     number: p.number.trim() || `Part ${i + 1}`
   }));
 
   const newNest = {
+
     label: setupDraft.label || `Nest ${nests.length + 1}`,
+
     patterns: Array.from(
       { length: setupDraft.patternCount },
       () => ({
@@ -393,13 +422,20 @@ function createNest() {
         }))
       })
     ),
+
     parts: cleanParts,
+
     currentPattern: 0,
+
+    startingPattern: 1,
+
     endingPattern: setupDraft.patternCount,
+
     totalSort: "parts"
   };
 
   nests.push(newNest);
+
   currentNestIndex = nests.length - 1;
 
   addingNest = false;
@@ -423,6 +459,7 @@ function createNest() {
 /* ================= NEST SWITCHING ================= */
 
 function setNest(i) {
+
   currentNestIndex = i;
 
   const nest = currentNest();
@@ -439,6 +476,7 @@ function setNest(i) {
 /* ================= WORKFLOW ================= */
 
 function setPattern(i) {
+
   const nest = currentNest();
 
   nest.currentPattern = i;
@@ -449,6 +487,7 @@ function setPattern(i) {
 }
 
 function updateQty(i, val) {
+
   const nest = currentNest();
 
   nest.patterns[nest.currentPattern].parts[i].qty = val;
@@ -458,6 +497,7 @@ function updateQty(i, val) {
   const inputs = document.querySelectorAll(".qty-input");
 
   if (inputs[i]) {
+
     inputs[i].style.background =
       val ? "white" : "#fff3b0";
   }
@@ -466,6 +506,7 @@ function updateQty(i, val) {
 }
 
 function addPattern() {
+
   const nest = currentNest();
 
   nest.patterns.push({
@@ -484,6 +525,7 @@ function addPattern() {
 }
 
 function addPart() {
+
   const nest = currentNest();
 
   const num = prompt("Part number:");
@@ -495,6 +537,7 @@ function addPart() {
   });
 
   nest.patterns.forEach(pattern => {
+
     pattern.parts.push({
       number: num,
       qty: ""
@@ -507,6 +550,7 @@ function addPart() {
 }
 
 function renameCurrentNest() {
+
   const nest = currentNest();
 
   const newLabel = prompt("New nest label:", nest.label);
@@ -520,16 +564,55 @@ function renameCurrentNest() {
   render();
 }
 
+/* ================= PATTERN RANGE ================= */
+
+function setStartingPattern(value) {
+
+  const nest = currentNest();
+
+  nest.startingPattern = parseInt(value);
+
+  // Starting pattern cannot be after ending pattern.
+  if (nest.startingPattern > nest.endingPattern) {
+    nest.endingPattern = nest.startingPattern;
+  }
+
+  saveState();
+
+  render();
+}
+
+function setEndingPattern(value) {
+
+  const nest = currentNest();
+
+  nest.endingPattern = parseInt(value);
+
+  // Ending pattern cannot be before starting pattern.
+  if (nest.endingPattern < nest.startingPattern) {
+    nest.startingPattern = nest.endingPattern;
+  }
+
+  saveState();
+
+  render();
+}
+
 /* ================= TOTALS ================= */
 
 function getTotals() {
+
   const nest = currentNest();
 
   const totals = {};
 
+  const startIndex = nest.startingPattern - 1;
   const endIndex = nest.endingPattern;
 
-  for (let pIndex = 0; pIndex < endIndex; pIndex++) {
+  // Calculate quantities only within selected range.
+
+  for (let pIndex = startIndex; pIndex < endIndex; pIndex++) {
+
     const pattern = nest.patterns[pIndex];
 
     if (!pattern) continue;
@@ -537,6 +620,7 @@ function getTotals() {
     const copies = parseInt(pattern.copies) || 1;
 
     pattern.parts.forEach(part => {
+
       const qty = parseInt(part.qty);
 
       if (!qty) return;
@@ -544,10 +628,12 @@ function getTotals() {
       const totalQty = qty * copies;
 
       if (!totals[part.number]) {
+
         totals[part.number] = {
           qty: 0,
           start: pIndex + 1,
-          end: pIndex + 1
+          end: pIndex + 1,
+          endsOn: 0
         };
       }
 
@@ -563,10 +649,32 @@ function getTotals() {
     });
   }
 
+  // Find the actual last pattern containing each part.
+  // This checks ALL patterns, not just the selected range.
+
+  Object.keys(totals).forEach(partNumber => {
+
+    let lastPattern = 0;
+
+    nest.patterns.forEach((pattern, pIndex) => {
+
+      const found = pattern.parts.some(part =>
+        part.number === partNumber && parseInt(part.qty) > 0
+      );
+
+      if (found) {
+        lastPattern = pIndex + 1;
+      }
+    });
+
+    totals[partNumber].endsOn = lastPattern;
+  });
+
   return totals;
 }
 
 function setTotalSort(sortType) {
+
   const nest = currentNest();
 
   nest.totalSort = sortType;
@@ -577,12 +685,15 @@ function setTotalSort(sortType) {
 }
 
 function getSortedTotalParts(totals) {
+
   const nest = currentNest();
 
   const totalParts = nest.parts.filter(p => totals[p.number]);
 
   if (nest.totalSort === "pattern") {
+
     return totalParts.sort((a, b) => {
+
       const totalA = totals[a.number];
       const totalB = totals[b.number];
 
@@ -602,6 +713,7 @@ function getSortedTotalParts(totals) {
 }
 
 function renderTotalsCard() {
+
   const nest = currentNest();
 
   const totals = getTotals();
@@ -615,6 +727,7 @@ function renderTotalsCard() {
     <h3>Totals</h3>
 
     <div>
+
       <button
         class="pattern-btn ${nest.totalSort === 'pattern' ? 'active' : ''}"
         onclick="setTotalSort('pattern')"
@@ -628,22 +741,32 @@ function renderTotalsCard() {
       >
         Sort by Parts
       </button>
+
     </div>
   `;
 
   getSortedTotalParts(totals).forEach(p => {
+
     const total = totals[p.number];
 
     const row = document.createElement("div");
 
     row.innerHTML = `
-      <span style="display:inline-block; min-width:120px;">
-        ${escapeHTML(p.number)}: ${total.qty}
-      </span>
+      <div>
+        <span style="display:inline-block; min-width:120px;">
+          ${escapeHTML(p.number)}: ${total.qty}
+        </span>
+      </div>
 
-      <span>
+      <div style="font-size:13px; margin-bottom:6px;">
+
         Patterns: ${total.start}-${total.end}
-      </span>
+
+        &nbsp; | &nbsp;
+
+        Ends On: ${total.endsOn}
+
+      </div>
     `;
 
     totalCard.appendChild(row);
@@ -653,6 +776,7 @@ function renderTotalsCard() {
 }
 
 function updateTotals() {
+
   const oldCard = document.getElementById("totals-card");
 
   if (!oldCard) return;
@@ -663,10 +787,14 @@ function updateTotals() {
 /* ================= RENDER ================= */
 
 function render() {
+
   if (!hasNest()) {
+
     document.getElementById("setup").style.display = "block";
     document.getElementById("app").style.display = "none";
+
     renderSetup();
+
     return;
   }
 
@@ -693,11 +821,14 @@ function render() {
 
   app.appendChild(top);
 
+  // Nest buttons.
+
   const nestButtons = document.createElement("div");
 
   nestButtons.className = "nest-buttons";
 
   nests.forEach((n, i) => {
+
     const btn = document.createElement("button");
 
     btn.innerText = n.label || `Nest ${i + 1}`;
@@ -713,6 +844,8 @@ function render() {
 
   app.appendChild(nestButtons);
 
+  // Nest title.
+
   const nestTitle = document.createElement("div");
 
   nestTitle.className = "card";
@@ -723,18 +856,31 @@ function render() {
 
   app.appendChild(nestTitle);
 
-  const endCard = document.createElement("div");
+  // Starting and ending pattern selectors.
 
-  endCard.className = "card";
+  const rangeCard = document.createElement("div");
 
-  endCard.innerHTML = `
-    <h3>Ending Pattern</h3>
+  rangeCard.className = "card";
 
-    <select onchange="
-      currentNest().endingPattern=parseInt(this.value);
-      saveState();
-      updateTotals();
-    ">
+  rangeCard.innerHTML = `
+    <h3>Pattern Range</h3>
+
+    <label>Starting Pattern</label>
+
+    <select onchange="setStartingPattern(this.value)">
+
+      ${nest.patterns.map((_, i) => `
+        <option value="${i + 1}"
+          ${nest.startingPattern === i + 1 ? "selected" : ""}>
+          Pattern ${i + 1}
+        </option>
+      `).join("")}
+
+    </select>
+
+    <label>Ending Pattern</label>
+
+    <select onchange="setEndingPattern(this.value)">
 
       ${nest.patterns.map((_, i) => `
         <option value="${i + 1}"
@@ -746,11 +892,14 @@ function render() {
     </select>
   `;
 
-  app.appendChild(endCard);
+  app.appendChild(rangeCard);
+
+  // Pattern buttons.
 
   const btnRow = document.createElement("div");
 
   nest.patterns.forEach((_, i) => {
+
     const btn = document.createElement("button");
 
     btn.innerText = "Pattern " + (i + 1);
@@ -765,6 +914,8 @@ function render() {
   });
 
   app.appendChild(btnRow);
+
+  // Copies.
 
   const copyCard = document.createElement("div");
 
@@ -788,6 +939,8 @@ function render() {
 
   app.appendChild(copyCard);
 
+  // Parts.
+
   const card = document.createElement("div");
 
   card.className = "card";
@@ -795,6 +948,7 @@ function render() {
   card.innerHTML = "<h3>Parts</h3>";
 
   nest.patterns[nest.currentPattern].parts.forEach((part, i) => {
+
     const row = document.createElement("div");
 
     row.className = "row";
@@ -820,13 +974,19 @@ function render() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+
   if (nests.length > 0) {
+
     document.getElementById("setup").style.display = "none";
     document.getElementById("app").style.display = "block";
+
     render();
+
   } else {
+
     document.getElementById("setup").style.display = "block";
     document.getElementById("app").style.display = "none";
+
     renderSetup();
   }
 });
@@ -834,13 +994,20 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 
 <script>
+
 if ("serviceWorker" in navigator) {
+
   window.addEventListener("load", () => {
+
     navigator.serviceWorker.register("./sw.js").catch(err => {
       console.warn("Service worker registration failed:", err);
     });
+
   });
+
 }
+
 </script>
+
 </body>
 </html>
