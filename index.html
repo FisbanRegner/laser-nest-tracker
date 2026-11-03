@@ -85,12 +85,40 @@
       gap: 4px;
       margin: 8px 0;
     }
+
+    /* TOTALS LAYOUT */
+
+    .totals-list {
+      overflow-x: auto;
+      width: 100%;
+    }
+
+    .total-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+      padding: 5px 0;
+      border-bottom: 1px solid #eee;
+      width: max-content;
+      min-width: 100%;
+    }
+
+    .total-part {
+      min-width: 120px;
+      font-weight: bold;
+    }
+
+    .total-patterns {
+      white-space: nowrap;
+    }
   </style>  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#111111">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Laser Tracker"></head><body><h1>Laser Nest Tracker</h1><button class="danger" onclick="reset()">Reset</button>
+  <meta name="apple-mobile-web-app-title" content="Laser Tracker">
+</head><body><h1>Laser Nest Tracker</h1><button class="danger" onclick="reset()">Reset</button>
 
 <div id="setup"></div>
 <div id="app" style="display:none;"></div><script>
@@ -124,6 +152,27 @@ function currentNest() {
 
 function hasNest() {
   return nests.length > 0 && currentNest();
+}
+
+/* Copies defaults to 1 but preserves 0 */
+
+function getPatternCopies(pattern) {
+
+  if (pattern.copies === undefined || pattern.copies === null) {
+    return 1;
+  }
+
+  if (pattern.copies === "") {
+    return 0;
+  }
+
+  const copies = parseInt(pattern.copies, 10);
+
+  if (!Number.isFinite(copies) || copies < 0) {
+    return 0;
+  }
+
+  return copies;
 }
 
 /* ================= LOAD / SAVE ================= */
@@ -165,6 +214,16 @@ function loadState() {
           nest.endingPattern = nest.patterns.length || 1;
         }
 
+        /* Preserve existing zero-copy patterns */
+
+        nest.patterns.forEach(pattern => {
+
+          if (pattern.copies === undefined || pattern.copies === null) {
+            pattern.copies = 1;
+          }
+
+        });
+
       });
 
       currentNestIndex = data.currentNestIndex || 0;
@@ -193,6 +252,14 @@ function loadState() {
           totalSort: data.totalSort || "parts"
         }
       ];
+
+      nests[0].patterns.forEach(pattern => {
+
+        if (pattern.copies === undefined || pattern.copies === null) {
+          pattern.copies = 1;
+        }
+
+      });
 
       currentNestIndex = 0;
 
@@ -667,6 +734,23 @@ function setEndingPattern(value) {
   updateTotals();
 }
 
+/* ================= COPIES ================= */
+
+function updateCopies(value) {
+
+  const nest = currentNest();
+
+  const pattern = nest.patterns[nest.currentPattern];
+
+  pattern.copies = value === ""
+    ? ""
+    : Math.max(0, parseInt(value, 10) || 0);
+
+  saveState();
+
+  updateTotals();
+}
+
 /* ================= TOTALS ================= */
 
 function getTotals() {
@@ -689,7 +773,8 @@ function getTotals() {
 
     let endsOn = null;
 
-    /* Calculate quantity within selected range */
+    /* Calculate quantity within selected range.
+       Patterns with zero copies are ignored. */
 
     for (
       let pIndex = startIndex - 1;
@@ -701,17 +786,19 @@ function getTotals() {
 
       if (!pattern) continue;
 
+      const copies = getPatternCopies(pattern);
+
+      if (copies === 0) continue;
+
       const partData = pattern.parts.find(
         p => p.number === part.number
       );
 
       if (!partData) continue;
 
-      const qty = parseInt(partData.qty) || 0;
+      const qty = parseInt(partData.qty, 10) || 0;
 
-      if (!qty) continue;
-
-      const copies = parseInt(pattern.copies) || 1;
+      if (qty <= 0) continue;
 
       totalQty += qty * copies;
 
@@ -722,7 +809,8 @@ function getTotals() {
       end = pIndex + 1;
     }
 
-    /* Find last pattern containing this part */
+    /* Find last pattern containing this part
+       while also excluding zero-copy patterns. */
 
     for (
       let pIndex = nest.patterns.length - 1;
@@ -732,11 +820,18 @@ function getTotals() {
 
       const pattern = nest.patterns[pIndex];
 
+      const copies = getPatternCopies(pattern);
+
+      if (copies === 0) continue;
+
       const partData = pattern.parts.find(
         p => p.number === part.number
       );
 
-      if (partData && (parseInt(partData.qty) || 0) > 0) {
+      if (
+        partData &&
+        (parseInt(partData.qty, 10) || 0) > 0
+      ) {
 
         endsOn = pIndex + 1;
 
@@ -843,7 +938,11 @@ function renderTotalsCard() {
 
     </div>
 
+    <div class="totals-list" id="totals-list"></div>
+
   `;
+
+  const totalsList = totalCard.querySelector("#totals-list");
 
   getSortedTotalParts(totals).forEach(p => {
 
@@ -851,25 +950,22 @@ function renderTotalsCard() {
 
     const row = document.createElement("div");
 
+    row.className = "total-row";
+
     row.innerHTML = `
 
-      <span style="display:inline-block; min-width:120px;">
-
+      <span class="total-part">
         ${escapeHTML(p.number)}: ${total.qty}
-
       </span>
 
-      <span>
-
+      <span class="total-patterns">
         Patterns: ${total.start}-${total.end}
-
         | Ends on ${total.endsOn}
-
       </span>
 
     `;
 
-    totalCard.appendChild(row);
+    totalsList.appendChild(row);
 
   });
 
@@ -1063,23 +1159,11 @@ function render() {
     <label>Copies</label>
 
     <input
-
       type="number"
-
-      min="1"
-
-      value="${nest.patterns[nest.currentPattern].copies || 1}"
-
-      oninput="
-
-        currentNest().patterns[currentNest().currentPattern].copies=this.value;
-
-        saveState();
-
-        updateTotals();
-
-      "
-
+      min="0"
+      step="1"
+      value="${getPatternCopies(nest.patterns[nest.currentPattern])}"
+      oninput="updateCopies(this.value)"
     />
 
   `;
@@ -1105,19 +1189,12 @@ function render() {
       <span>${escapeHTML(part.number)}</span>
 
       <input
-
         class="qty-input"
-
         type="number"
-
         min="0"
-
         value="${escapeHTML(part.qty)}"
-
         style="background:${part.qty ? 'white' : '#fff3b0'}"
-
         oninput="updateQty(${i}, this.value)"
-
       />
 
     `;
